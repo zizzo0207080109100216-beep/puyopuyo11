@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>AED ぷよぷよ</title>
+<style>
+/* --- 画面全体レイアウトの修正 (Flexboxで画面中央に配置) --- */
+html, body {
+    /* height: 100vh; ではなく 100% を使用し、ブラウザのツールバーによる変動に柔軟に対応 */
+    height: 100%; 
+    margin: 0;
+    /* padding: 0; を使用し、横向き時の余白を確保しない */
+    padding: 0;
+    overflow: hidden; /* スクロール防止 */
+}
+
+body {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    font-family: Arial, sans-serif;
+    color: white;
+    -webkit-tap-highlight-color: transparent; 
+    box-sizing: border-box;
+    
+    /* bodyをFlexboxにし、コンテンツ全体を中央に配置 */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    /* max-heightを削除し、横向き時に領域が固定されないようにする */
+}
+
+#game-wrapper {
+    /* ゲーム全体を囲むコンテナ。画面サイズに応じて柔軟に縮小・拡大 */
+    display: flex;
+    flex-direction: column; 
+    align-items: center;
+    max-width: 100%; 
+    max-height: 100%; /* bodyの高さ内で収まるように */
+    width: auto;
+    box-sizing: border-box;
+}
+
+#game-title {
+    font-size: 2rem;
+    text-shadow: 3px 3px 6px rgba(0,0,0,0.7);
+    margin: 10px 0 0 0; /* スコアの下にくるので上マージン */
+    flex-shrink: 0; 
+}
+
+#main-content {
+    /* ステージエリアとNEXTエリアを横に並べる */
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    flex-grow: 1; /* 残りの高さを最大限使用 */
+    width: 100%;
+    min-height: 0; 
+}
+
+#game-container {
+    /* スコア、ステージ、タイトルを垂直に並べる */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex-grow: 1;
+    min-height: 0;
+}
+
+#stage {
+    position: relative;
+    background: #1a1a2e;
+    border: 4px solid #f5576c;
+    border-radius: 10px;
+    box-shadow: 0 0 30px rgba(245,87,108,0.5);
+    touch-action: none; 
+    flex-grow: 1; /* 残りの高さを使い、ぷよサイズ計算の基準とする */
+    margin: 0;
+    /* overflow: hidden; を追加し、ぷよがはみ出ないようにする */
+    overflow: hidden;
+}
+
+#score {
+    background: rgba(0,0,0,0.8);
+    padding: 10px 15px;
+    font-size: 1.2rem;
+    font-weight: bold;
+    border-radius: 8px;
+    margin-bottom: 10px; 
+    flex-shrink: 0; 
+}
+
+/* --- スタート画面の修正 --- */
+#start-screen {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.9);
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around; 
+    align-items: center;
+    border-radius: 10px;
+    box-sizing: border-box;
+    padding: 10px;
+    margin: 0; 
+}
+#start-screen h2 {
+    font-size: 1.6rem;
+    color: #f5576c;
+    margin-bottom: 5px;
+    margin-top: 5px;
+}
+#start-screen p {
+    font-size: 0.9rem;
+    line-height: 1.4;
+    margin: 3px 0;
+}
+#start-button {
+    padding: 10px 20px;
+    font-size: 1.2rem;
+    cursor: pointer;
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    margin-top: 15px;
+    margin-bottom: 15px;
+    box-shadow: 0 4px 15px rgba(245,87,108,0.5);
+    transition: all 0.3s;
+}
+
+/* --- NEXT ぷよ表示エリアのスタイル --- */
+#next-container {
+    margin-left: 10px;
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    flex-shrink: 0; 
+}
+#next-container h2 {
+    font-size: 1.5rem;
+    margin-top: 0;
+    margin-bottom: 5px;
+}
+#next-puyo-container {
+    position: relative;
+    border: 2px solid #fff;
+    border-radius: 5px;
+    background: rgba(0,0,0,0.5);
+    margin-top: 0;
+}
+#next-puyo-container canvas {
+    position: absolute;
+}
+</style>
+</head>
+<body>
+<div id="game-wrapper">
+    
+<div id="main-content">
+        <div id="game-container">
+            
+<div id="score">スコア: <span id="score-value">0</span></div>
+            <div id="stage">
+                <div id="start-screen">
+                    <h2>AED ぷよぷよへようこそ！</h2>
+                    <p>同じ色のAEDを<span style="color:#ffd700; font-weight: bold;">4つ以上</span>揃えて消そう！</p>
+                    <p style="margin-top: 10px; font-size: 1.1rem;"><strong>操作方法 (PC)</strong></p>
+                    <p><strong>移動:</strong> ← →</p>
+                    <p><strong>回転:</strong> ↑ (または Z キー)</p>
+                    <p><strong>高速落下:</strong> ↓</p>
+                    <p style="margin-top: 10px; font-size: 1.1rem;"><strong>操作方法 (スマホ)</strong></p>
+                    <p><strong>移動:</strong> 左右スライド</p>
+                    <p><strong>回転:</strong> 画面タップ</p>
+                    <p><strong>高速落下:</strong> 下スライド</p>
+                    <button id="start-button">ゲームスタート</button>
+                </div>
+                
+                <div id="combo-display"></div>
+            </div>
+            
+<h1 id="game-title">🏥 AED ぷよぷよ 🏥</h1>
+        </div>
+
+        <div id="next-container">
+            <h2>NEXT</h2>
+            <div id="next-puyo-container">
+                </div>
+        </div>
+    </div>
+</div>
+
+<script>
+class Config {
+    static puyoSize = 0;
+    static cols = 6;
+    static rows = 12;
+    // 落下速度はpuyoSizeに応じて調整されるため、ここでは「速さの倍率」として定義
+    static freeFallingSpeedRatio = 0.5; // 自由落下の速さ（マスの移動量）
+    static playerFallingSpeedRatio = 0.03; // プレイヤー操作中の落下速度（マスの移動量）
+    static playerDownSpeedRatio = 0.3; // 高速落下時の追加速度（マスの移動量）
+
+    static erasePuyoCount = 4;
+    static eraseAnimationDuration = 30;
+    static playerGroundFrame = 20;
+    static comboDisplayDuration = 60;
+    static touchThreshold = 50;
+    static moveInterval = 5;
+}
+
+const AED_TYPES = ['red', 'blue', 'white', 'yellow', 'green'];
+
+function drawAED(ctx, type, size) {
+    const isSquare = ['red', 'blue', 'green'].includes(type);
+    const colors = {
+        red: '#ff0000',
+        blue: '#3399ff',
+        white: '#f0f0f0',
+        yellow: '#ffd700',
+        green: '#22c55e'
+    };
+    
+    ctx.save();
+    ctx.clearRect(0, 0, size, size);
+    
+    // ぷよの描画
+    if (isSquare) {
+        ctx.fillStyle = colors[type];
+        ctx.fillRect(size * 0.1, size * 0.1, size * 0.8, size * 0.8);
+        ctx.strokeStyle = type === 'red' ? '#cc0000' : type === 'blue' ? '#0066cc' : '#16a34a';
+        ctx.lineWidth = size * 0.06;
+        ctx.strokeRect(size * 0.1, size * 0.1, size * 0.8, size * 0.8);
+    } else {
+        ctx.beginPath();
+        ctx.arc(size/2, size/2, size * 0.4, 0, Math.PI*2);
+        ctx.fillStyle = colors[type];
+        ctx.fill();
+        ctx.strokeStyle = type === 'white' ? '#ccc' : '#daa520';
+        ctx.lineWidth = size * 0.06;
+        ctx.stroke();
+    }
+    
+    // 文字の描画
+    ctx.fillStyle = isSquare ? 'white' : '#333';
+    ctx.font = `bold ${Math.max(10, size * 0.28)}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('AED', size/2, size/2);
+    ctx.restore();
+}
+
+class Stage {
+    constructor() {
+        this.element = document.getElementById('stage');
+        this.board = Array(Config.rows).fill().map(() => Array(Config.cols).fill(null));
+        this.puyoCount = 0;
+        this.fallingPuyoList = [];
+        this.erasingPuyoInfoList = [];
+        this.eraseStartFrame = 0;
+    }
+    
+    setSize(puyoSize) {
+        this.element.style.width = puyoSize * Config.cols + 'px';
+        this.element.style.height = puyoSize * Config.rows + 'px';
+        
+        document.getElementById('start-screen').style.width = puyoSize * Config.cols + 'px';
+        document.getElementById('start-screen').style.height = puyoSize * Config.rows + 'px';
+    }
+
+    setPuyo(x, y, type) {
+        const size = Config.puyoSize;
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        canvas.style.position = 'absolute';
+        canvas.style.left = x * size + 'px';
+        canvas.style.top = y * size + 'px';
+        
+        const ctx = canvas.getContext('2d');
+        drawAED(ctx, type, size);
+        
+        this.element.appendChild(canvas);
+        this.board[y][x] = { type, element: canvas };
+    }
+    
+    checkFall() {
+        this.fallingPuyoList = [];
+        let isFalling = false;
+        
+        for (let y = Config.rows - 2; y >= 0; y--) {
+            for (let x = 0; x < Config.cols; x++) {
+                if (!this.board[y][x]) continue;
+                if (this.board[y + 1][x]) continue;
+                
+                let cell = this.board[y][x];
+                this.board[y][x] = null;
+                
+                let dst = y;
+                while (dst + 1 < Config.rows && !this.board[dst + 1][x]) {
+                    dst++;
+                }
+                
+                this.board[dst][x] = cell;
+                this.fallingPuyoList.push({
+                    element: cell.element,
+                    position: y * Config.puyoSize,
+                    destination: dst * Config.puyoSize,
+                    falling: true
+                });
+                isFalling = true;
+            }
+        }
+        return isFalling;
+    }
+    
+    fall() {
+        let isFalling = false;
+        // 落下速度をpuyoSizeに比例させ、すり抜けを防ぐ
+        const fallSpeed = Config.puyoSize * Config.freeFallingSpeedRatio;
+
+        for (const puyo of this.fallingPuyoList) {
+            if (!puyo.falling) continue;
+            
+            puyo.position += fallSpeed;
+            if (puyo.position >= puyo.destination) {
+                puyo.position = puyo.destination;
+                puyo.falling = false;
+            } else {
+                isFalling = true;
+            }
+            puyo.element.style.top = puyo.position + 'px';
+        }
+        return isFalling;
+    }
+    
+    checkErase(frame) {
+        this.eraseStartFrame = frame;
+        this.erasingPuyoInfoList = [];
+        const erasedPuyoColor = {};
+        
+        const sequencePuyoInfoList = [];
+        const existingPuyoInfoList = [];
+        
+        const checkSequentialPuyo = (x, y) => {
+            const orig = this.board[y][x];
+            if (!orig) return;
+            
+            const type = this.board[y][x].type;
+            sequencePuyoInfoList.push({ x, y, cell: this.board[y][x] });
+            this.board[y][x] = null;
+            
+            const directions = [[0,1], [1,0], [0,-1], [-1,0]];
+            for (const [dx, dy] of directions) {
+                const nx = x + dx;
+                const ny = y + dy;
+                if (nx < 0 || ny < 0 || nx >= Config.cols || ny >= Config.rows) continue;
+                const cell = this.board[ny][nx];
+                if (!cell || cell.type !== type) continue;
+                checkSequentialPuyo(nx, ny);
+            }
+        };
+        
+        for (let y = 0; y < Config.rows; y++) {
+            for (let x = 0; x < Config.cols; x++) {
+                sequencePuyoInfoList.length = 0;
+                const puyoType = this.board[y][x]?.type;
+                if (!puyoType) continue;
+                
+                checkSequentialPuyo(x, y);
+                
+                if (sequencePuyoInfoList.length >= Config.erasePuyoCount) {
+                    this.erasingPuyoInfoList.push(...sequencePuyoInfoList);
+                    erasedPuyoColor[puyoType] = true;
+                } else if (sequencePuyoInfoList.length > 0) {
+                    existingPuyoInfoList.push(...sequencePuyoInfoList);
+                }
+            }
+        }
+        
+        this.puyoCount -= this.erasingPuyoInfoList.length;
+        
+        for (const info of existingPuyoInfoList) {
+            this.board[info.y][info.x] = info.cell;
+        }
+        
+        if (this.erasingPuyoInfoList.length) {
+            return {
+                piece: this.erasingPuyoInfoList.length,
+                color: Object.keys(erasedPuyoColor).length
+            };
+        }
+        return null;
+    }
+    
+    erasing(frame) {
+        const ratio = (frame - this.eraseStartFrame) / Config.eraseAnimationDuration;
+        if (ratio > 1) {
+            for (const info of this.erasingPuyoInfoList) {
+                this.element.removeChild(info.cell.element);
+            }
+            return false;
+        }
+        
+        const visible = Math.floor(ratio * 4) % 2 === 0;
+        for (const info of this.erasingPuyoInfoList) {
+            info.cell.element.style.display = visible ? 'block' : 'none';
+        }
+        return true;
+    }
+}
+
+class Player {
+    constructor(stage) {
+        this.stage = stage;
+        this.keyStatus = { left: false, right: false, up: false, down: false, rotate: false };
+        this.moveFrame = 0;
+        this.setupControls();
+        
+        this.centerPuyo = null;
+        this.movablePuyo = null;
+        this.centerElement = null;
+        this.movableElement = null;
+        this.puyoStatus = null;
+        this.groundFrame = 0;
+    }
+    
+    setupControls() {
+        const setKey = (key, val) => {
+            if (key === 37) this.keyStatus.left = val;
+            else if (key === 38 || key === 90) this.keyStatus.rotate = val;
+            else if (key === 39) this.keyStatus.right = val;
+            else if (key === 40) this.keyStatus.down = val;
+            
+            if (!val) {
+                if (key === 37 || key === 39) this.moveFrame = 0;
+            }
+        };
+        
+        document.addEventListener('keydown', e => {
+            setKey(e.keyCode, true);
+            if ([37,38,39,40,90].includes(e.keyCode)) e.preventDefault();
+        });
+        
+        document.addEventListener('keyup', e => {
+            setKey(e.keyCode, false);
+        });
+    }
+
+    setTouchAction(action) {
+        switch (action) {
+            case 'left':
+                this.keyStatus.left = true;
+                this.keyStatus.right = false;
+                break;
+            case 'right':
+                this.keyStatus.right = true;
+                this.keyStatus.left = false;
+                break;
+            case 'down':
+                this.keyStatus.down = true;
+                break;
+            case 'rotate':
+                this.keyStatus.rotate = true;
+                break;
+            case 'release_horizontal':
+                this.keyStatus.left = false;
+                this.keyStatus.right = false;
+                this.moveFrame = 0;
+                break;
+            case 'release_down':
+                this.keyStatus.down = false;
+                break;
+        }
+    }
+    
+    createNewPuyo(nextPuyoType) {
+        if (this.stage.board[0][2]) return false;
+        
+        this.centerPuyo = nextPuyoType.center;
+        this.movablePuyo = nextPuyoType.movable;
+        const size = Config.puyoSize;
+        
+        this.centerElement = document.createElement('canvas');
+        this.centerElement.width = size;
+        this.centerElement.height = size;
+        this.centerElement.style.position = 'absolute';
+        const ctx1 = this.centerElement.getContext('2d');
+        drawAED(ctx1, this.centerPuyo, size);
+        
+        this.movableElement = document.createElement('canvas');
+        this.movableElement.width = size;
+        this.movableElement.height = size;
+        this.movableElement.style.position = 'absolute';
+        const ctx2 = this.movableElement.getContext('2d');
+        drawAED(ctx2, this.movablePuyo, size);
+        
+        this.stage.element.appendChild(this.centerElement);
+        this.stage.element.appendChild(this.movableElement);
+        
+        this.puyoStatus = {
+            x: 2,
+            y: -1,
+            // 90度回転（右）の状態を初期値に設定 (dx=1, dy=0)
+            dx: 1, 
+            dy: 0,
+            rotation: 90
+        };
+        
+        this.groundFrame = 0;
+        this.setPuyoPosition();
+        return true;
+    }
+    
+    setPuyoPosition() {
+        const size = Config.puyoSize;
+        const left = this.puyoStatus.x * size;
+        const top = this.puyoStatus.y * size;
+        
+        this.centerElement.style.left = left + 'px';
+        this.centerElement.style.top = top + 'px';
+        
+        // movableぷよは中心ぷよからの相対座標で配置
+        const mx = left + this.puyoStatus.dx * size;
+        const my = top + this.puyoStatus.dy * size;
+        
+        this.movableElement.style.left = mx + 'px';
+        this.movableElement.style.top = my + 'px';
+    }
+    
+    canMove(cx) {
+        // x, yは小数点を含む可能性があるため、四捨五入して整数セル座標を求める
+        const x = Math.round(this.puyoStatus.x);
+        const y = Math.floor(this.puyoStatus.y);
+        const mx = x + this.puyoStatus.dx;
+        const my = y + this.puyoStatus.dy;
+        
+        let can = true;
+        
+        // 中心ぷよのチェック
+        const newX = x + cx;
+        if (newX < 0 || newX >= Config.cols || (y >= 0 && this.stage.board[y]?.[newX])) {
+            can = false;
+        }
+        
+        // 可動ぷよのチェック
+        const newMx = mx + cx;
+        if (can && (newMx < 0 || newMx >= Config.cols || (my >= 0 && this.stage.board[my]?.[newMx]))) {
+            can = false;
+        }
+        return can;
+    }
+
+    movePuyo() {
+        const isHorizontalKeyDown = this.keyStatus.left || this.keyStatus.right;
+        
+        if (!('ontouchstart' in window) && isHorizontalKeyDown) {
+            const shouldMove = (this.moveFrame === 0) || (this.moveFrame > 15 && this.moveFrame % Config.moveInterval === 0);
+
+            this.moveFrame++;
+            
+            if (shouldMove) {
+                const cx = this.keyStatus.right ? 1 : -1;
+                
+                if (this.canMove(cx)) {
+                    this.puyoStatus.x += cx;
+                    if (this.groundFrame > 0) {
+                        this.groundFrame = 0;
+                    }
+                }
+            }
+        } 
+        else if (('ontouchstart' in window) && isHorizontalKeyDown) {
+            // スマホでは、ボタンではなくスライド操作を想定するため、
+            // 左右のキー押下は短い時間で判定を解除する。
+            const cx = this.keyStatus.right ? 1 : -1;
+            
+            if (this.canMove(cx)) {
+                this.puyoStatus.x += cx;
+                if (this.groundFrame > 0) {
+                    this.groundFrame = 0;
+                }
+            }
+        }
+        
+        if (!isHorizontalKeyDown) {
+            this.moveFrame = 0;
+        }
+    }
+    
+    falling(isDownPressed) {
+        const x = Math.round(this.puyoStatus.x); // xは四捨五入で整数セル座標を使う
+        const y = Math.floor(this.puyoStatus.y);
+        const dx = this.puyoStatus.dx;
+        const dy = this.puyoStatus.dy;
+        
+        const checkBlocked = (cy) => {
+            // 中心ぷよの下のセルをチェック
+            if (cy + 1 >= Config.rows) return true;
+            if (cy >= -1 && this.stage.board[cy + 1]?.[x]) return true; // cy=-1のとき、y=0のセルをチェック
+            
+            // 可動ぷよの下のセルをチェック
+            const mpy = cy + dy;
+            const mpx = x + dx;
+            
+            if (mpy + 1 >= Config.rows) return true;
+            if (mpy >= -1 && this.stage.board[mpy + 1]?.[mpx]) return true;
+            
+            return false;
+        };
+        
+        const isBlocked = checkBlocked(y);
+        
+        if (!isBlocked) {
+            // 落下速度は puyoSize * 割合 (1フレームあたり最大1マス)
+            const speed = Config.puyoSize * (Config.playerFallingSpeedRatio + (isDownPressed ? Config.playerDownSpeedRatio : 0));
+            
+            this.puyoStatus.y += speed / Config.puyoSize;
+            
+            const newY = Math.floor(this.puyoStatus.y);
+            
+            // 整数座標を越えたときに、ブロックされているか確認
+            if (newY > y) {
+                if (checkBlocked(newY)) {
+                    this.puyoStatus.y = newY; // 整数座標に修正
+                    this.groundFrame = 1;
+                } else {
+                    this.groundFrame = 0;
+                }
+            }
+            return false;
+        }
+        
+        // 接地判定
+        if (this.groundFrame === 0) {
+            // 既に着地している場合、現在の位置を最終的なセル位置に四捨五入して固定
+            this.puyoStatus.y = y; 
+            this.groundFrame = 1;
+            return false;
+        }
+        
+        this.groundFrame++;
+        return this.groundFrame > Config.playerGroundFrame;
+    }
+    
+    playing() {
+        this.movePuyo();
+        
+        if (this.falling(this.keyStatus.down)) {
+            this.setPuyoPosition();
+            return 'fix';
+        }
+        
+        if (this.keyStatus.rotate) {
+            const currentRot = this.puyoStatus.rotation;
+            const nextRot = (currentRot + 90) % 360;
+            const x = Math.round(this.puyoStatus.x);
+            const y = Math.floor(this.puyoStatus.y);
+            
+            // 90度回転ごとの (dx, dy) の変化
+            // 90度: (1, 0), 180度: (0, 1), 270度: (-1, 0), 0度: (0, -1)
+            const dCombi = [[0, -1], [1, 0], [0, 1], [-1, 0]]; 
+            
+            const nextDx = dCombi[nextRot / 90][0];
+            const nextDy = dCombi[nextRot / 90][1];
+            
+            let newX = x;
+            let canRotate = true;
+            
+            const nextCx = x + nextDx; // 新しい可動ぷよのX座標
+            const nextCy = y + nextDy; // 新しい可動ぷよのY座標
+            
+            // 1. 新しい可動ぷよの位置が壁や他のぷよと衝突するかチェック
+            if (nextCx < 0 || nextCx >= Config.cols || (nextCy >= 0 && this.stage.board[nextCy]?.[nextCx])) {
+                
+                // 2. 衝突した場合、壁蹴り (Wall Kick) を試みる
+                let kickDirection = 0;
+                // 右端で上/下回転をするときに左に蹴る
+                if ((currentRot === 90 || currentRot === 270) && x === Config.cols - 1) { 
+                    kickDirection = -1;
+                }
+                // 左端で上/下回転をするときに右に蹴る
+                else if ((currentRot === 90 || currentRot === 270) && x === 0) {
+                    kickDirection = 1;
+                }
+                // その他（基本的には左右に壁があるときに、横に蹴る）
+                else if (nextDx === -1) { // 左に回転するとき（例: 0度 -> 270度）
+                    kickDirection = 1;
+                } else if (nextDx === 1) { // 右に回転するとき（例: 180度 -> 90度）
+                    kickDirection = -1;
+                }
+                
+                if (kickDirection !== 0 && this.canMove(kickDirection)) {
+                    newX = x + kickDirection; // 蹴り後の新しいX座標
+                } else {
+                    canRotate = false; // 蹴りも失敗
+                }
+            }
+            
+            const finalMx = newX + nextDx;
+            const finalMy = y + nextDy;
+            
+            // 3. 蹴り後の新しい位置で、再度可動ぷよの位置をチェック
+            if (canRotate && (finalMx < 0 || finalMx >= Config.cols || (finalMy >= 0 && this.stage.board[finalMy]?.[finalMx]))) {
+                 canRotate = false;
+            }
+            
+            if (canRotate) {
+                this.puyoStatus.x = newX;
+                this.puyoStatus.rotation = nextRot;
+                this.puyoStatus.dx = nextDx;
+                this.puyoStatus.dy = nextDy;
+                
+                // 回転により床から離れた場合は接地フレームをリセット
+                if (y + 1 < Config.rows && !this.stage.board[y + 1]?.[newX] && (y + nextDy + 1 < Config.rows && !this.stage.board[y + nextDy + 1]?.[newX + nextDx])) {
+                    this.groundFrame = 0;
+                }
+            }
+            
+            this.keyStatus.rotate = false;
+        }
+        
+        this.setPuyoPosition();
+        return 'playing';
+    }
+    
+    fix() {
+        const x = Math.round(this.puyoStatus.x);
+        const y = Math.floor(this.puyoStatus.y);
+        const dx = this.puyoStatus.dx;
+        const dy = this.puyoStatus.dy;
+        
+        if (y >= 0) {
+            this.stage.setPuyo(x, y, this.centerPuyo);
+            this.stage.puyoCount++;
+        }
+        if (y + dy >= 0) {
+            this.stage.setPuyo(x + dx, y + dy, this.movablePuyo);
+            this.stage.puyoCount++;
+        }
+        
+        this.stage.element.removeChild(this.centerElement);
+        this.stage.element.removeChild(this.movableElement);
+        this.centerElement = null;
+        this.movableElement = null;
+    }
+}
+
+class Game {
+    constructor() {
+        this.stage = new Stage(); 
+        
+        this.stage.setSize(50); 
+        this.calculatePuyoSize(); 
+        this.stage.setSize(Config.puyoSize); 
+        
+        this.player = new Player(this.stage);
+        this.mode = 'start';
+        this.frame = 0;
+        this.score = 0;
+        this.combinationCount = 0;
+        this.scoreElement = document.getElementById('score-value');
+        this.comboDisplayElement = document.getElementById('combo-display');
+        this.comboDisplayFrame = 0;
+        
+        this.nextCenterPuyo = this.getRandomPuyoType();
+        this.nextMovablePuyo = this.getRandomPuyoType();
+        this.nextPuyoContainer = document.getElementById('next-puyo-container');
+        
+        this.drawNextPuyo();
+        
+        // リサイズイベントを追加して、画面回転時にサイズを再計算
+        window.addEventListener('resize', () => {
+             this.resizeGame();
+        });
+    }
+
+    resizeGame() {
+        this.calculatePuyoSize();
+        this.stage.setSize(Config.puyoSize);
+        this.drawNextPuyo();
+        // プレイヤーぷよの位置も更新したいが、ゲーム進行中なのでリサイズ時は固定ぷよのみ
+    }
+    
+    calculatePuyoSize() {
+        const stageElement = document.getElementById('stage');
+        const mainContentElement = document.getElementById('main-content');
+        
+        // Flexboxが既に高さを確保しているため、clientWidth/clientHeightを使用
+        
+        // 1. 横幅からぷよサイズを計算 (ステージ6マス + NEXTエリア約2.5マス)
+        const horizontalPuyoArea = Config.cols + 2.5; 
+        const widthPuyoSize = Math.floor(mainContentElement.clientWidth / horizontalPuyoArea); 
+
+        // 2. 高さからぷよサイズを計算 (ステージ12行)
+        const heightPuyoSize = Math.floor(stageElement.clientHeight / Config.rows); 
+
+        // 3. 最終的なサイズを決定 (最小30px、最大60pxに制限)
+        Config.puyoSize = Math.max(30, Math.min(widthPuyoSize, heightPuyoSize, 60)); 
+    }
+
+    getRandomPuyoType() {
+        return AED_TYPES[Math.floor(Math.random() * AED_TYPES.length)];
+    }
+
+    drawNextPuyo() {
+        this.nextPuyoContainer.innerHTML = '';
+        const size = Config.puyoSize;
+        const container = this.nextPuyoContainer;
+
+        const centerCanvas = document.createElement('canvas');
+        centerCanvas.width = size;
+        centerCanvas.height = size;
+        centerCanvas.style.position = 'absolute';
+        centerCanvas.style.left = '0px'; 
+        centerCanvas.style.top = '0px'; 
+        const ctxC = centerCanvas.getContext('2d');
+        drawAED(ctxC, this.nextCenterPuyo, size);
+        container.appendChild(centerCanvas);
+
+        const movableCanvas = document.createElement('canvas');
+        movableCanvas.width = size;
+        movableCanvas.height = size;
+        movableCanvas.style.position = 'absolute';
+        movableCanvas.style.left = '0px';
+        movableCanvas.style.top = size + 'px'; 
+        const ctxM = movableCanvas.getContext('2d');
+        drawAED(ctxM, this.nextMovablePuyo, size);
+        container.appendChild(movableCanvas);
+        
+        container.style.width = size + 'px';
+        container.style.height = (size * 2) + 'px'; 
+    }
+    
+    addScore(points) {
+        this.score += points;
+        this.scoreElement.textContent = this.score;
+    }
+    
+    updateComboDisplay() {
+        const size = Config.puyoSize;
+        this.comboDisplayElement.style.width = size * Config.cols + 'px';
+        this.comboDisplayElement.style.height = size * Config.rows + 'px';
+        this.comboDisplayElement.style.fontSize = `${Math.min(size * 0.8, 40)}px`;
+        
+        if (this.comboDisplayFrame > 0) {
+            this.comboDisplayFrame--;
+            if (this.combinationCount > 0) {
+                 this.comboDisplayElement.style.opacity = '1';
+                 this.comboDisplayElement.textContent = `${this.combinationCount} 連鎖！`;
+            }
+        } else {
+            this.comboDisplayElement.style.opacity = '0';
+        }
+    }
+    
+    loop() {
+        this.updateComboDisplay();
+        
+        switch (this.mode) {
+            case 'start':
+                break;
+            
+            case 'checkFall':
+                if (this.stage.checkFall()) {
+                    this.mode = 'fall';
+                } else {
+                    this.mode = 'checkErase';
+                }
+                break;
+                
+            case 'fall':
+                if (!this.stage.fall()) {
+                    this.mode = 'checkErase';
+                }
+                break;
+                
+            case 'checkErase':
+                const eraseInfo = this.stage.checkErase(this.frame);
+                if (eraseInfo) {
+                    this.mode = 'erasing';
+                    this.combinationCount++;
+                    const points = eraseInfo.piece * 10 * Math.pow(2, this.combinationCount - 1);
+                    this.addScore(points);
+                    
+                    this.comboDisplayFrame = Config.comboDisplayDuration;
+                } else {
+                    this.combinationCount = 0;
+                    this.mode = 'newPuyo';
+                }
+                break;
+                
+            case 'erasing':
+                if (!this.stage.erasing(this.frame)) {
+                    this.mode = 'checkFall';
+                }
+                break;
+                
+            case 'newPuyo':
+                const currentPuyoType = { 
+                    center: this.nextCenterPuyo,
+                    movable: this.nextMovablePuyo
+                };
+
+                if (!this.player.createNewPuyo(currentPuyoType)) {
+                    this.mode = 'gameOver';
+                } else {
+                    this.nextCenterPuyo = this.getRandomPuyoType();
+                    this.nextMovablePuyo = this.getRandomPuyoType();
+                    this.drawNextPuyo();
+                    this.mode = 'playing';
+                }
+                break;
+                
+            case 'playing':
+                this.mode = this.player.playing();
+                break;
+                
+            case 'fix':
+                this.player.fix();
+                this.mode = 'checkFall';
+                break;
+                
+            case 'gameOver':
+                alert(`ゲームオーバー！\nスコア: ${this.score}`);
+                location.reload();
+                return;
+        }
+        
+        this.frame++;
+        requestAnimationFrame(() => this.loop());
+    }
+    
+    start() {
+        document.getElementById('start-screen').style.display = 'none';
+        this.setupTouchControls();
+        this.mode = 'checkFall';
+        this.loop();
+    }
+
+    setupTouchControls() {
+        const stageElement = this.stage.element;
+        let startX = 0;
+        let startY = 0;
+        let moved = false;
+        let isDownSliding = false;
+
+        stageElement.addEventListener('touchstart', e => {
+            if (e.touches.length === 1) {
+                startX = e.touches[0].clientX;
+                startY = e.touches[0].clientY;
+                moved = false;
+                isDownSliding = false;
+                this.player.setTouchAction('release_down');
+                this.player.setTouchAction('release_horizontal');
+                this.player.moveFrame = 0;
+            }
+        });
+
+        stageElement.addEventListener('touchmove', e => {
+            if (e.touches.length === 1) {
+                const deltaX = e.touches[0].clientX - startX;
+                const deltaY = e.touches[0].clientY - startY;
+
+                if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) {
+                    moved = true;
+                }
+
+                if (Math.abs(deltaX) > Config.touchThreshold && Math.abs(deltaX) > Math.abs(deltaY)) {
+                    if (deltaX > 0) {
+                        this.player.setTouchAction('right');
+                    } else {
+                        this.player.setTouchAction('left');
+                    }
+                    // スライド操作では、1回のスライドで1マス移動させるため、キー状態をすぐに解除する
+                    setTimeout(() => this.player.setTouchAction('release_horizontal'), 50); 
+                    startX = e.touches[0].clientX; // 新しいX座標を記録
+                }
+                
+                if (deltaY > Config.touchThreshold && Math.abs(deltaY) > Math.abs(deltaX)) {
+                    this.player.setTouchAction('down');
+                    isDownSliding = true;
+                } else if (isDownSliding && deltaY < 0) { // 上方向へのスライドは高速落下を解除
+                    this.player.setTouchAction('release_down');
+                    isDownSliding = false;
+                }
+            }
+            if (e.cancelable) {
+                e.preventDefault();
+            }
+        });
+
+        stageElement.addEventListener('touchend', e => {
+            this.player.setTouchAction('release_down');
+            this.player.setTouchAction('release_horizontal');
+            
+            if (!moved) { 
+                 this.player.setTouchAction('rotate');
+            }
+        });
+    }
+}
+
+window.addEventListener('load', () => {
+    const game = new Game();
+    
+    document.getElementById('start-button').addEventListener('click', () => {
+        game.start();
+    });
+});
+</script>
+</body>
+</html>
